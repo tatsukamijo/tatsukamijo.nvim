@@ -31,6 +31,13 @@ External Requirements:
   - If you want to write Typescript, you need `npm`
   - If you want to write Golang, you will need `go`
   - etc.
+- Tools installed via [pixi](https://pixi.sh/) (Mason versions may have GLIBC issues on older systems):
+  - `stylua` - Lua formatter
+  - `black`, `isort` - Python formatters
+  - `clang-format` - C/C++ formatter
+  ```sh
+  pixi global install stylua black isort clang-format
+  ```
 
 > **NOTE**
 > See [Install Recipes](#Install-Recipes) for additional Windows and Linux specific notes
