@@ -278,10 +278,6 @@ local function toggle_terminals()
 end
 
 vim.keymap.set('n', '<space>st', toggle_terminals, { desc = '[S]mall [T]erminal toggle' })
-vim.keymap.set('t', '<space>st', function()
-  vim.cmd 'stopinsert'
-  toggle_terminals()
-end, { desc = '[S]mall [T]erminal toggle' })
 
 vim.keymap.set('n', '<space>sv', function()
   vim.cmd.vsplit()
