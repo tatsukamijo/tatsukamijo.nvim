@@ -215,18 +215,79 @@ vim.api.nvim_create_autocmd('TermOpen', {
   end,
 })
 
-vim.keymap.set('n', '<space>st', function()
-  vim.cmd.vnew()
-  vim.cmd.term()
-  vim.cmd.wincmd 'J'
-  vim.api.nvim_win_set_height(0, 10)
-  vim.wo.winfixheight = true
-end)
+-- Toggle terminals (preserves session)
+local term_bufs = {} -- { bufnr = { type = 'bottom' | 'vertical', height = number } }
+local function toggle_terminals()
+  -- Clean up invalid buffers
+  for bufnr, _ in pairs(term_bufs) do
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      term_bufs[bufnr] = nil
+    end
+  end
+
+  -- Check if any terminal is visible
+  local any_visible = false
+  for bufnr, _ in pairs(term_bufs) do
+    if vim.fn.bufwinid(bufnr) ~= -1 then
+      any_visible = true
+      break
+    end
+  end
+
+  if any_visible then
+    -- Hide all terminals
+    for bufnr, _ in pairs(term_bufs) do
+      local win_id = vim.fn.bufwinid(bufnr)
+      if win_id ~= -1 then
+        vim.api.nvim_win_hide(win_id)
+      end
+    end
+  elseif next(term_bufs) then
+    -- Show all terminals (bottom first, then vertical splits)
+    local bottom_buf, vertical_bufs = nil, {}
+    for bufnr, info in pairs(term_bufs) do
+      if info.type == 'bottom' then
+        bottom_buf = bufnr
+      else
+        table.insert(vertical_bufs, bufnr)
+      end
+    end
+    -- Restore bottom terminal first
+    if bottom_buf then
+      vim.cmd.split()
+      vim.cmd.wincmd 'J'
+      vim.api.nvim_win_set_buf(0, bottom_buf)
+      vim.api.nvim_win_set_height(0, 10)
+      vim.wo.winfixheight = true
+    end
+    -- Restore vertical terminals as vsplits within the bottom area
+    for _, bufnr in ipairs(vertical_bufs) do
+      vim.cmd.vsplit()
+      vim.api.nvim_win_set_buf(0, bufnr)
+    end
+    vim.cmd 'startinsert'
+  else
+    -- Create first terminal (bottom)
+    vim.cmd.split()
+    vim.cmd.wincmd 'J'
+    vim.cmd.term()
+    vim.api.nvim_win_set_height(0, 10)
+    vim.wo.winfixheight = true
+    term_bufs[vim.api.nvim_get_current_buf()] = { type = 'bottom' }
+  end
+end
+
+vim.keymap.set('n', '<space>st', toggle_terminals, { desc = '[S]mall [T]erminal toggle' })
+vim.keymap.set('t', '<space>st', function()
+  vim.cmd 'stopinsert'
+  toggle_terminals()
+end, { desc = '[S]mall [T]erminal toggle' })
 
 vim.keymap.set('n', '<space>sv', function()
-  vim.cmd.vnew()
+  vim.cmd.vsplit()
   vim.cmd.term()
-end)
+  term_bufs[vim.api.nvim_get_current_buf()] = { type = 'vertical' }
+end, { desc = '[S]plit [V]ertical terminal' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
