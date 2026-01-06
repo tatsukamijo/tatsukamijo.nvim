@@ -285,6 +285,23 @@ vim.keymap.set('n', '<space>sv', function()
   term_bufs[vim.api.nvim_get_current_buf()] = { type = 'vertical' }
 end, { desc = '[S]plit [V]ertical terminal' })
 
+-- Window maximize toggle (like tmux prefix+m)
+-- Uses tab to avoid resizing original window (prevents terminal output corruption)
+local maximized_tab = nil -- tab number when maximized
+vim.keymap.set('n', '<space>sm', function()
+  if maximized_tab then
+    -- Close the maximized tab, return to original
+    vim.cmd 'tabclose'
+    maximized_tab = nil
+  else
+    -- Open current buffer in new tab (original window unchanged)
+    local bufnr = vim.api.nvim_get_current_buf()
+    vim.cmd 'tabnew'
+    vim.api.nvim_win_set_buf(0, bufnr)
+    maximized_tab = vim.api.nvim_get_current_tabpage()
+  end
+end, { desc = '[S]ize [M]aximize toggle' })
+
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
 -- is not what someone will guess without a bit more experience.
