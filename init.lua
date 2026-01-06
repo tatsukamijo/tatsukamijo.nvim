@@ -93,6 +93,19 @@ vim.g.maplocalleader = ' '
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
+-- OSC 52 clipboard (works over SSH/tmux)
+vim.g.clipboard = {
+  name = 'OSC 52',
+  copy = {
+    ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+  },
+  paste = {
+    ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+    ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+  },
+}
+
 -- [[ Setting options ]]
 -- See `:help vim.opt`
 -- NOTE: You can change these options as you wish!
@@ -328,6 +341,24 @@ vim.keymap.set('n', '<C-l>', '<C-w><C-l>', { desc = 'Move focus to the upper win
 -- Open file with system viewer (useful for PDF, images, etc.)
 vim.keymap.set('n', '<leader>op', ':silent !xdg-open "%" &<CR>', { desc = '[O]pen with system viewer', silent = true })
 
+vim.keymap.set('n', 'gX', function()
+  local path
+
+  -- neo-tree
+  if vim.bo.filetype == 'neo-tree' then
+    local state = require('neo-tree.sources.manager').get_state 'filesystem'
+    local node = state.tree:get_node()
+    path = node:get_id()
+  else
+    -- Normal buffer
+    path = vim.fn.expand '<cfile>'
+    path = vim.fn.fnamemodify(path, ':p')
+  end
+
+  vim.fn.setreg('+', path)
+  print('Copied: ' .. path)
+end, { desc = 'Copy path for remote open' })
+
 -- Neotree keybinds
 vim.keymap.set('n', '<leader>e', ':Neotree toggle<CR>', { noremap = true, silent = true })
 
@@ -355,8 +386,8 @@ vim.keymap.set('n', '<C-s>', ':w<CR>', { desc = 'Save file' })
 
 -- Save all and quit
 vim.keymap.set('n', '<leader>Q', function()
-  vim.cmd('wall')  -- Save all writable buffers
-  vim.cmd('qa!')   -- Force quit all
+  vim.cmd 'wall' -- Save all writable buffers
+  vim.cmd 'qa!' -- Force quit all
 end, { desc = 'Save all and [Q]uit' })
 
 -- Yank to end of line (consistent with D and C)
@@ -1062,7 +1093,26 @@ require('lazy').setup({
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     config = function()
       require('nvim-treesitter').setup {
-        ensure_installed = { 'bash', 'c', 'cpp', 'python', 'typescript', 'javascript', 'tsx', 'diff', 'html', 'css', 'json', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+        ensure_installed = {
+          'bash',
+          'c',
+          'cpp',
+          'python',
+          'typescript',
+          'javascript',
+          'tsx',
+          'diff',
+          'html',
+          'css',
+          'json',
+          'lua',
+          'luadoc',
+          'markdown',
+          'markdown_inline',
+          'query',
+          'vim',
+          'vimdoc',
+        },
         auto_install = true,
       }
     end,
