@@ -1,26 +1,22 @@
-# My Neovim Config
+# tatsukamijo.nvim
 
-Personal config based on kickstart.nvim.
-
-## Requirements
-
-- Neovim 0.11+
-- git, make, gcc, ripgrep
-- [Nerd Font](https://www.nerdfonts.com/)
-- [pixi](https://pixi.prefix.dev/latest/):
-  ```sh
-  pixi global install stylua black isort clang-format
-  ```
-- (Optional) [Claude Code](https://code.claude.com/docs/en/setup)
+Personal Neovim config based on kickstart.nvim.
 
 ## Install
 
+Requires [Nerd Font](https://www.nerdfonts.com/).  
+(Optional) [Claude Code](https://code.claude.com/docs/en/setup)
+
 ```sh
-git clone git@github.com:tatsukamijo/kickstart.nvim.git ~/.config/nvim
+# Neovim 0.11+, git, make, gcc, ripgrep
+pixi global install nvim stylua black isort clang-format
+
+# Clone
+git clone git@github.com:tatsukamijo/tatsukamijo.nvim.git ~/.config/nvim
 nvim  # auto-setup on first launch
 ```
 
-## Key Bindings
+## Basic Key Bindings
 
 Leader: `<Space>`
 
