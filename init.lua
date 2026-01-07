@@ -302,12 +302,15 @@ end, { desc = '[S]plit [V]ertical terminal' })
 -- Uses tab to avoid resizing original window (prevents terminal output corruption)
 local maximized_tab = nil -- tab number when maximized
 vim.keymap.set('n', '<space>sm', function()
-  if maximized_tab then
+  -- Check if maximized tab still exists
+  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
+  if tab_exists and vim.fn.tabpagenr '$' > 1 then
     -- Close the maximized tab, return to original
     vim.cmd 'tabclose'
     maximized_tab = nil
   else
-    -- Open current buffer in new tab (original window unchanged)
+    -- Reset invalid state or create new maximized tab
+    maximized_tab = nil
     local bufnr = vim.api.nvim_get_current_buf()
     vim.cmd 'tabnew'
     vim.api.nvim_win_set_buf(0, bufnr)
