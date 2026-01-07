@@ -396,6 +396,10 @@ end, { desc = 'Save all and [Q]uit' })
 -- Yank to end of line (consistent with D and C)
 vim.keymap.set('n', 'Y', 'y$', { desc = 'Yank to end of line' })
 
+-- Change without yanking (preserve clipboard)
+vim.keymap.set({ 'n', 'x' }, 'c', '"_c')
+vim.keymap.set('n', 'C', '"_C')
+
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
