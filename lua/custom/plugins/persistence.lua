@@ -35,5 +35,22 @@ return {
     { '<leader>qs', function() require('persistence').load() end, desc = 'Restore session (cwd)' },
     { '<leader>ql', function() require('persistence').load { last = true } end, desc = 'Restore last session' },
     { '<leader>qd', function() require('persistence').stop() end, desc = "Don't save current session" },
+    {
+      '<leader>qD',
+      function()
+        -- Delete session file for current directory
+        local session_dir = vim.fn.stdpath('state') .. '/sessions/'
+        local cwd = vim.fn.getcwd():gsub('/', '%%')
+        local session_file = session_dir .. cwd .. '.vim'
+        if vim.fn.filereadable(session_file) == 1 then
+          vim.fn.delete(session_file)
+          print('Deleted session: ' .. vim.fn.getcwd())
+        else
+          print('No session file for: ' .. vim.fn.getcwd())
+        end
+        require('persistence').stop()
+      end,
+      desc = 'Delete session (cwd)',
+    },
   },
 }
