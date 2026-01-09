@@ -14,8 +14,12 @@ return {
     { '\\', ':Neotree reveal<CR>', desc = 'NeoTree reveal', silent = true },
   },
   opts = {
+    close_if_last_window = true,
     filesystem = {
-      use_libuv_file_watcher = true,
+      use_libuv_file_watcher = false,
+      follow_current_file = {
+        enabled = true,
+      },
       window = {
         mappings = {
           ['\\'] = 'close_window',
