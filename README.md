@@ -1,7 +1,9 @@
 # tatsukamijo.nvim
+Neovim config based on [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim).
+
+
 <img width="1728" height="1117" alt="Screenshot 2026-01-09 at 15 53 18" src="https://github.com/user-attachments/assets/a816c456-e1ac-42b3-bdf2-8ee80aee9f2d" />
 
-Neovim config based on [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim).
 
 ## Install
 
