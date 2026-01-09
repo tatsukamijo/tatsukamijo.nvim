@@ -35,6 +35,17 @@ Leader: `<Space>`
 | `<leader>ac` | Claude Code |
 | `<leader>ar` | Resume Claude (from history) |
 
+## NeoCodeium (AI Completion)
+
+| Key | Action |
+|-----|--------|
+| `Alt+;` | Accept suggestion |
+| `Alt+w` | Accept word |
+| `Alt+.` | Accept line |
+| `Alt+n` | Next suggestion |
+| `Alt+p` | Prev suggestion |
+| `Alt+/` | Clear |
+
 ## Structure
 
 ```
