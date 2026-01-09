@@ -95,7 +95,8 @@ nvim  # auto-setup on first launch
 | `<leader>aa` | Accept diff |
 | `<leader>ad` | Deny diff |
 
-## NeoCodeium (AI Completion)
+## NeoCodeium (Auto Completion)
+`:NeoCodeium auth` to authenticate.
 
 | Key | Action |
 |-----|--------|
