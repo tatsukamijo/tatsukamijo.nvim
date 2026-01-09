@@ -318,6 +318,40 @@ vim.keymap.set('n', '<space>sm', function()
   end
 end, { desc = '[S]ize [M]aximize toggle' })
 
+-- Maximize all terminals in a new tab
+vim.keymap.set('n', '<space>sM', function()
+  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
+  if tab_exists and vim.fn.tabpagenr '$' > 1 then
+    -- Close the maximized tab, return to original
+    vim.cmd 'tabclose'
+    maximized_tab = nil
+  else
+    -- Collect all visible terminal buffers
+    local terminal_bufs = {}
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      local buf = vim.api.nvim_win_get_buf(win)
+      if vim.bo[buf].buftype == 'terminal' then
+        table.insert(terminal_bufs, buf)
+      end
+    end
+    if #terminal_bufs == 0 then
+      print 'No terminals to maximize'
+      return
+    end
+    -- Create new tab with first terminal
+    vim.cmd 'tabnew'
+    vim.api.nvim_win_set_buf(0, terminal_bufs[1])
+    -- Add remaining terminals as vertical splits
+    for i = 2, #terminal_bufs do
+      vim.cmd 'vsplit'
+      vim.api.nvim_win_set_buf(0, terminal_bufs[i])
+    end
+    -- Equalize window sizes
+    vim.cmd 'wincmd ='
+    maximized_tab = vim.api.nvim_get_current_tabpage()
+  end
+end, { desc = '[S]ize [M]aximize all terminals' })
+
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
 -- is not what someone will guess without a bit more experience.
