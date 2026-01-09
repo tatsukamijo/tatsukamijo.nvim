@@ -1,6 +1,6 @@
 # tatsukamijo.nvim
 
-Personal Neovim config based on kickstart.nvim.
+Neovim config based on [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim).
 
 ## Install
 
@@ -30,12 +30,12 @@ Leader: `<Space>`
 | `<leader>sm` | Maximize window |
 | `<C-h/j/k/l>` | Navigate splits (tmux-aware) |
 | `gd` / `gr` | Definition / references |
+| `<C-o>` / `<C-n>` | Jump back / forward |
 | `<leader>f` | Format |
-| `<leader>ca` | Code action |
 | `<leader>ac` | Claude Code |
 | `<leader>ar` | Resume Claude (from history) |
 
-## NeoCodeium (AI Completion)
+## NeoCodeium (Auto Completion)
 
 | Key | Action |
 |-----|--------|
@@ -46,6 +46,29 @@ Leader: `<Space>`
 | `Alt+p` | Prev suggestion |
 | `Alt+/` | Clear |
 
+## Plugins
+
+| Plugin | Description |
+|--------|-------------|
+| telescope | Fuzzy finder |
+| neo-tree | File explorer |
+| gitsigns | Git signs & hunk actions |
+| which-key | Keymap hints |
+| nvim-cmp | Autocompletion |
+| treesitter | Syntax highlighting |
+| conform | Formatter |
+| persistence | Session management |
+| claudecode | Claude Code integration |
+| neocodeium | AI code completion |
+| vim-tmux-navigator | Tmux-aware navigation |
+| markdown-preview | Markdown preview in browser |
+| mini.nvim | Statusline, text objects |
+| autopairs | Auto close brackets |
+
+## LSP
+
+pyright, clangd, ts_ls, lua_ls (auto-installed via Mason)
+
 ## Structure
 
 ```
@@ -54,7 +77,3 @@ lua/
   kickstart/plugins/     # kickstart plugins
   custom/plugins/        # custom plugins (auto-loaded)
 ```
-
-## LSP
-
-pyright, clangd, ts_ls, lua_ls (auto-installed via Mason)
