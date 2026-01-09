@@ -142,23 +142,23 @@ Sessions auto-restore when opening Neovim without file arguments.
 
 | Plugin | Description |
 |--------|-------------|
-| telescope | Fuzzy finder |
-| neo-tree | File explorer |
-| gitsigns | Git signs & hunk actions |
-| which-key | Keymap hints (0 delay) |
-| nvim-cmp | Autocompletion |
-| treesitter | Syntax highlighting |
-| conform | Auto-formatter |
-| persistence | Session management |
-| claudecode | Claude Code integration |
-| neocodeium | AI code completion |
-| vim-tmux-navigator | Tmux-aware navigation |
-| markdown-preview | Markdown preview in browser |
-| mini.nvim | Statusline, text objects |
-| autopairs | Auto close brackets |
-| todo-comments | Highlight TODO/NOTE in comments |
-| lazydev | Lua LSP for Neovim config |
-| fidget | LSP progress indicator |
+| [telescope](https://github.com/nvim-telescope/telescope.nvim) | Fuzzy finder |
+| [neo-tree](https://github.com/nvim-neo-tree/neo-tree.nvim) | File explorer |
+| [gitsigns](https://github.com/lewis6991/gitsigns.nvim) | Git signs & hunk actions |
+| [which-key](https://github.com/folke/which-key.nvim) | Keymap hints (0 delay) |
+| [nvim-cmp](https://github.com/hrsh7th/nvim-cmp) | Autocompletion |
+| [treesitter](https://github.com/nvim-treesitter/nvim-treesitter) | Syntax highlighting |
+| [conform](https://github.com/stevearc/conform.nvim) | Auto-formatter |
+| [persistence](https://github.com/folke/persistence.nvim) | Session management |
+| [claudecode](https://github.com/coder/claudecode.nvim) | Claude Code integration |
+| [neocodeium](https://github.com/monkoose/neocodeium) | AI code completion |
+| [vim-tmux-navigator](https://github.com/christoomey/vim-tmux-navigator) | Tmux-aware navigation |
+| [markdown-preview](https://github.com/iamcco/markdown-preview.nvim) | Markdown preview in browser |
+| [mini.nvim](https://github.com/echasnovski/mini.nvim) | Statusline, text objects |
+| [autopairs](https://github.com/windwp/nvim-autopairs) | Auto close brackets |
+| [todo-comments](https://github.com/folke/todo-comments.nvim) | Highlight TODO/NOTE in comments |
+| [lazydev](https://github.com/folke/lazydev.nvim) | Lua LSP for Neovim config |
+| [fidget](https://github.com/j-hui/fidget.nvim) | LSP progress indicator |
 
 ## Structure
 
