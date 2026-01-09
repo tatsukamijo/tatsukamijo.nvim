@@ -39,7 +39,7 @@ Leader: `<Space>`
 
 | Key | Action |
 |-----|--------|
-| `Alt+;` | Accept suggestion |
+| `Tab` | Accept suggestion |
 | `Alt+w` | Accept word |
 | `Alt+.` | Accept line |
 | `Alt+n` | Next suggestion |
