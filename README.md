@@ -56,6 +56,7 @@ nvim  # auto-setup on first launch
 | `<leader>st` | Toggle bottom terminal |
 | `<leader>sv` | Vertical terminal split |
 | `<leader>sm` | Maximize/restore window |
+| `<leader>sM` | Maximize all terminals |
 | `<Esc><Esc>` | Exit terminal mode |
 | `jk` | Exit insert/terminal mode |
 | `<C-s>` | Save file |
