@@ -94,11 +94,24 @@ vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
 
 -- OSC 52 clipboard (works over SSH/tmux)
+local function osc52_copy(lines, _)
+  local data = table.concat(lines, '\n')
+  local b64 = vim.base64.encode(data)
+  local osc
+  if vim.env.TMUX then
+    -- tmux needs DCS wrap
+    osc = string.format('\027Ptmux;\027\027]52;c;%s\007\027\\', b64)
+  else
+    osc = string.format('\027]52;c;%s\007', b64)
+  end
+  io.stdout:write(osc)
+end
+
 vim.g.clipboard = {
   name = 'OSC 52',
   copy = {
-    ['+'] = require('vim.ui.clipboard.osc52').copy '+',
-    ['*'] = require('vim.ui.clipboard.osc52').copy '*',
+    ['+'] = osc52_copy,
+    ['*'] = osc52_copy,
   },
   paste = {
     ['+'] = require('vim.ui.clipboard.osc52').paste '+',
