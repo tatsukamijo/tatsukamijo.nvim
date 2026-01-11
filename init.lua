@@ -94,11 +94,27 @@ vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
 
 -- Clipboard configuration
--- Use native pbcopy/pbpaste on macOS local, OSC 52 over SSH
+-- Use native pbcopy/pbpaste on macOS local, OSC 52 over SSH (with xclip fallback for large data)
 if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
-  -- SSH: Use OSC 52 for cross-platform clipboard
+  -- SSH: Use OSC 52 for small data, xclip for large data (OSC 52 has size limits)
+  local OSC52_MAX_SIZE = 50000 -- ~50KB before base64 encoding (tmux has ~74KB limit)
+
   local function osc52_copy(lines, _)
     local data = table.concat(lines, '\n')
+
+    -- For large data, use xclip if X11 is available (prevents freeze)
+    if #data > OSC52_MAX_SIZE then
+      if vim.env.DISPLAY and vim.fn.executable 'xclip' == 1 then
+        -- Use xclip via X11 forwarding
+        vim.fn.system('xclip -selection clipboard', data)
+        return
+      else
+        -- Truncate and warn if no xclip available
+        vim.notify('Clipboard data truncated (OSC 52 size limit)', vim.log.levels.WARN)
+        data = data:sub(1, OSC52_MAX_SIZE)
+      end
+    end
+
     local b64 = vim.base64.encode(data)
     local osc
     if vim.env.TMUX then
@@ -110,15 +126,27 @@ if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
     io.stdout:write(osc)
   end
 
+  -- Paste: prefer xclip if available, fallback to OSC 52
+  local function xclip_or_osc52_paste(reg)
+    return function()
+      if vim.env.DISPLAY and vim.fn.executable 'xclip' == 1 then
+        local result = vim.fn.systemlist 'xclip -selection clipboard -o'
+        return result
+      else
+        return require('vim.ui.clipboard.osc52').paste(reg)()
+      end
+    end
+  end
+
   vim.g.clipboard = {
-    name = 'OSC 52',
+    name = 'OSC 52 + xclip',
     copy = {
       ['+'] = osc52_copy,
       ['*'] = osc52_copy,
     },
     paste = {
-      ['+'] = require('vim.ui.clipboard.osc52').paste '+',
-      ['*'] = require('vim.ui.clipboard.osc52').paste '*',
+      ['+'] = xclip_or_osc52_paste '+',
+      ['*'] = xclip_or_osc52_paste '*',
     },
   }
 else
