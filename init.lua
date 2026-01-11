@@ -339,11 +339,14 @@ vim.keymap.set('n', '<space>sM', function()
     vim.cmd 'tabclose'
     maximized_tab = nil
   else
-    -- Collect all visible terminal buffers
+    -- Collect all visible terminal buffers (excluding Claude Code windows)
     local terminal_bufs = {}
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       local buf = vim.api.nvim_win_get_buf(win)
-      if vim.bo[buf].buftype == 'terminal' then
+      local bufname = vim.api.nvim_buf_get_name(buf)
+      local is_claude_code = bufname:match 'claude' or bufname:match 'Claude'
+
+      if vim.bo[buf].buftype == 'terminal' and not is_claude_code then
         table.insert(terminal_bufs, buf)
       end
     end
