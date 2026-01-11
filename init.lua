@@ -283,7 +283,7 @@ local function toggle_terminals()
       vim.cmd.split()
       vim.cmd.wincmd 'J'
       vim.api.nvim_win_set_buf(0, bottom_buf)
-      vim.api.nvim_win_set_height(0, 10)
+      vim.api.nvim_win_set_height(0, 30)
       vim.wo.winfixheight = true
     end
     -- Restore vertical terminals as vsplits within the bottom area
@@ -297,7 +297,7 @@ local function toggle_terminals()
     vim.cmd.split()
     vim.cmd.wincmd 'J'
     vim.cmd.term()
-    vim.api.nvim_win_set_height(0, 10)
+    vim.api.nvim_win_set_height(0, 30)
     vim.wo.winfixheight = true
     term_bufs[vim.api.nvim_get_current_buf()] = { type = 'bottom' }
   end
