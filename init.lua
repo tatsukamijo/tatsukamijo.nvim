@@ -93,31 +93,48 @@ vim.g.maplocalleader = ' '
 -- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
--- OSC 52 clipboard (works over SSH/tmux)
-local function osc52_copy(lines, _)
-  local data = table.concat(lines, '\n')
-  local b64 = vim.base64.encode(data)
-  local osc
-  if vim.env.TMUX then
-    -- tmux needs DCS wrap
-    osc = string.format('\027Ptmux;\027\027]52;c;%s\007\027\\', b64)
-  else
-    osc = string.format('\027]52;c;%s\007', b64)
+-- Clipboard configuration
+-- Use native pbcopy/pbpaste on macOS local, OSC 52 over SSH
+if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
+  -- SSH: Use OSC 52 for cross-platform clipboard
+  local function osc52_copy(lines, _)
+    local data = table.concat(lines, '\n')
+    local b64 = vim.base64.encode(data)
+    local osc
+    if vim.env.TMUX then
+      -- tmux needs DCS wrap
+      osc = string.format('\027Ptmux;\027\027]52;c;%s\007\027\\', b64)
+    else
+      osc = string.format('\027]52;c;%s\007', b64)
+    end
+    io.stdout:write(osc)
   end
-  io.stdout:write(osc)
-end
 
-vim.g.clipboard = {
-  name = 'OSC 52',
-  copy = {
-    ['+'] = osc52_copy,
-    ['*'] = osc52_copy,
-  },
-  paste = {
-    ['+'] = require('vim.ui.clipboard.osc52').paste '+',
-    ['*'] = require('vim.ui.clipboard.osc52').paste '*',
-  },
-}
+  vim.g.clipboard = {
+    name = 'OSC 52',
+    copy = {
+      ['+'] = osc52_copy,
+      ['*'] = osc52_copy,
+    },
+    paste = {
+      ['+'] = require('vim.ui.clipboard.osc52').paste '+',
+      ['*'] = require('vim.ui.clipboard.osc52').paste '*',
+    },
+  }
+else
+  -- macOS local: Use native pbcopy/pbpaste (more reliable)
+  vim.g.clipboard = {
+    name = 'macOS',
+    copy = {
+      ['+'] = 'pbcopy',
+      ['*'] = 'pbcopy',
+    },
+    paste = {
+      ['+'] = 'pbpaste',
+      ['*'] = 'pbpaste',
+    },
+  }
+end
 
 -- [[ Setting options ]]
 -- See `:help vim.opt`
