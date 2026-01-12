@@ -9,7 +9,7 @@ return {
   opts = {
     terminal = {
       split_side = 'right',
-      split_width_percentage = 0.35,
+      split_width_percentage = 0.30,
       snacks_win_opts = {
         keys = {
           -- Terminal mode: hide with same toggle key
@@ -25,7 +25,7 @@ return {
           nav_left = {
             '<C-h>',
             function()
-              vim.cmd('TmuxNavigateLeft')
+              vim.cmd 'TmuxNavigateLeft'
             end,
             mode = 't',
             desc = 'Navigate left',
@@ -33,7 +33,7 @@ return {
           nav_right = {
             '<C-l>',
             function()
-              vim.cmd('TmuxNavigateRight')
+              vim.cmd 'TmuxNavigateRight'
             end,
             mode = 't',
             desc = 'Navigate right',
@@ -41,7 +41,7 @@ return {
           nav_up = {
             '<C-k>',
             function()
-              vim.cmd('TmuxNavigateUp')
+              vim.cmd 'TmuxNavigateUp'
             end,
             mode = 't',
             desc = 'Navigate up',
@@ -49,7 +49,7 @@ return {
           nav_down = {
             '<C-j>',
             function()
-              vim.cmd('TmuxNavigateDown')
+              vim.cmd 'TmuxNavigateDown'
             end,
             mode = 't',
             desc = 'Navigate down',
