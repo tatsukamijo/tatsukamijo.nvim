@@ -502,6 +502,42 @@ vim.keymap.set('n', 'C', '"_C')
 -- [[ Basic Autocommands ]]
 --  See `:help lua-guide-autocommands`
 
+-- Auto-equalize window widths (excluding fixed-width sidebars like neo-tree, claudecode)
+local function equalize_windows()
+  -- Skip if only one window or in special buffer
+  if vim.fn.winnr '$' <= 1 then
+    return
+  end
+
+  -- Mark sidebar windows as fixed width
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local ft = vim.bo[buf].filetype
+    local bufname = vim.api.nvim_buf_get_name(buf)
+
+    -- neo-tree, claudecode, and other sidebars should have fixed width
+    local is_sidebar = ft == 'neo-tree'
+      or ft == 'NvimTree'
+      or bufname:match 'claude' ~= nil
+      or bufname:match 'Claude' ~= nil
+      or ft == 'help'
+      or ft == 'qf'
+
+    vim.wo[win].winfixwidth = is_sidebar
+  end
+
+  -- Equalize remaining windows
+  vim.cmd 'wincmd ='
+end
+
+vim.api.nvim_create_autocmd({ 'WinEnter', 'WinClosed', 'BufWinEnter' }, {
+  group = vim.api.nvim_create_augroup('AutoEqualizeWindows', { clear = true }),
+  callback = function()
+    -- Defer to avoid issues during window transitions
+    vim.defer_fn(equalize_windows, 10)
+  end,
+})
+
 -- Highlight when yanking (copying) text
 --  Try it with `yap` in normal mode
 --  See `:help vim.highlight.on_yank()`
