@@ -288,6 +288,7 @@ vim.api.nvim_create_autocmd('TermOpen', {
 
 -- Toggle terminals (preserves session)
 local term_bufs = {} -- { bufnr = { type = 'bottom' | 'vertical', height = number } }
+local maximized_tab = nil -- Shared state for maximize toggle
 local function toggle_terminals()
   -- Clean up invalid buffers
   for bufnr, _ in pairs(term_bufs) do
@@ -348,7 +349,16 @@ local function toggle_terminals()
   end
 end
 
-vim.keymap.set('n', '<space>st', toggle_terminals, { desc = '[S]mall [T]erminal toggle' })
+vim.keymap.set('n', '<space>st', function()
+  -- If maximized, close the tab first
+  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
+  if tab_exists and vim.fn.tabpagenr '$' > 1 then
+    vim.cmd 'tabclose'
+    maximized_tab = nil
+  end
+  -- Then toggle terminals normally
+  toggle_terminals()
+end, { desc = '[S]mall [T]erminal toggle' })
 
 vim.keymap.set('n', '<space>sv', function()
   vim.cmd.vsplit()
@@ -358,7 +368,6 @@ end, { desc = '[S]plit [V]ertical terminal' })
 
 -- Window maximize toggle (like tmux prefix+m)
 -- Uses tab to avoid resizing original window (prevents terminal output corruption)
-local maximized_tab = nil -- tab number when maximized
 vim.keymap.set('n', '<space>sm', function()
   -- Check if maximized tab still exists
   local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
