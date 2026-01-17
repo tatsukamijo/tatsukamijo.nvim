@@ -523,13 +523,16 @@ local function equalize_windows()
     local buf = vim.api.nvim_win_get_buf(win)
     local ft = vim.bo[buf].filetype
     local bufname = vim.api.nvim_buf_get_name(buf)
-    local basename = vim.fn.fnamemodify(bufname, ':t')
+    local buftype = vim.bo[buf].buftype
+
+    -- Check if it's Claude Code terminal (term:// buffer matching ":claude" or ":claude --resume")
+    local is_claude_terminal = buftype == 'terminal'
+      and (bufname:match ':claude%s*$' ~= nil or bufname:match ':claude%s+%-%-resume%s*$' ~= nil)
 
     -- neo-tree, claudecode, and other sidebars should have fixed width
     local is_sidebar = ft == 'neo-tree'
       or ft == 'NvimTree'
-      or basename == 'claude'
-      or basename == 'claude --resume'
+      or is_claude_terminal
       or ft == 'help'
       or ft == 'qf'
 
