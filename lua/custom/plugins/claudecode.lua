@@ -3,6 +3,61 @@
 
 local toggle_key = '<C-,>'
 
+-- Helper: Auto-focus Claude Code after command execution
+local function focus_claude_after(cmd, delay)
+  delay = delay or 100
+  return function()
+    if vim.bo.buftype == 'terminal' then
+      vim.notify('Cannot execute from terminal buffer', vim.log.levels.WARN)
+      return
+    end
+    vim.cmd(cmd)
+    vim.defer_fn(function()
+      vim.cmd 'ClaudeCodeFocus'
+    end, delay)
+  end
+end
+
+-- Helper: Check if current buffer is Claude Code terminal
+local function is_in_claude_buffer()
+  local bufname = vim.api.nvim_buf_get_name(0)
+  return bufname:match ':claude' ~= nil
+end
+
+-- Helper: Send selection to Claude (handles both normal and terminal buffers)
+local function send_selection_to_claude()
+  local buftype = vim.bo.buftype
+  local from_claude = is_in_claude_buffer()
+
+  if buftype == 'terminal' then
+    vim.cmd 'normal! y'
+    local yanked = vim.fn.getreg '"'
+
+    if yanked == '' then
+      vim.notify('Selection is empty', vim.log.levels.WARN)
+      return
+    end
+
+    local tmpfile = string.format('%s_claude_%d', vim.fn.tempname(), vim.loop.hrtime())
+    vim.fn.writefile(vim.split(yanked, '\n'), tmpfile)
+
+    vim.cmd('ClaudeCodeAdd ' .. tmpfile)
+    vim.defer_fn(function()
+      if not from_claude then
+        vim.cmd 'ClaudeCodeFocus'
+      end
+      vim.fn.delete(tmpfile)
+    end, 500)
+  else
+    vim.cmd 'ClaudeCodeSend'
+    vim.defer_fn(function()
+      if not from_claude then
+        vim.cmd 'ClaudeCodeFocus'
+      end
+    end, 100)
+  end
+end
+
 return {
   'coder/claudecode.nvim',
   dependencies = { 'folke/snacks.nvim' },
@@ -12,7 +67,6 @@ return {
       split_width_percentage = 0.30,
       snacks_win_opts = {
         keys = {
-          -- Terminal mode: hide with same toggle key
           claude_hide = {
             toggle_key,
             function(self)
@@ -21,7 +75,6 @@ return {
             mode = 't',
             desc = 'Hide Claude',
           },
-          -- Terminal mode: navigate with Ctrl+h/l (tmux-aware)
           nav_left = {
             '<C-h>',
             function()
@@ -66,11 +119,16 @@ return {
     { '<leader>ar', '<cmd>ClaudeCode --resume<cr>', desc = 'Resume Claude' },
     { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue Claude' },
     { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select Claude model' },
-    { '<leader>ab', '<cmd>ClaudeCodeAdd %<cr>', desc = 'Add current buffer' },
-    { '<leader>as', '<cmd>ClaudeCodeSend<cr>', mode = 'v', desc = 'Send to Claude' },
+    { '<leader>ab', focus_claude_after 'ClaudeCodeAdd %', desc = 'Add current buffer' },
+    { '<leader>as', send_selection_to_claude, mode = 'v', desc = 'Send to Claude' },
     {
       '<leader>as',
-      '<cmd>ClaudeCodeTreeAdd<cr>',
+      function()
+        vim.cmd 'ClaudeCodeTreeAdd'
+        vim.defer_fn(function()
+          vim.cmd 'ClaudeCodeFocus'
+        end, 100)
+      end,
       desc = 'Add file',
       ft = { 'NvimTree', 'neo-tree', 'oil', 'minifiles', 'netrw' },
     },
