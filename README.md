@@ -13,7 +13,7 @@ Requires [Nerd Font](https://www.nerdfonts.com/).
 ```sh
 # Neovim 0.11+, git, make, gcc, ripgrep
 # xclip: for large clipboard over SSH (Linux only, not needed on macOS)
-pixi global install nvim stylua black isort clang-format xclip
+pixi global install nvim nodejs stylua black isort clang-format xclip
 
 # Clone
 git clone git@github.com:tatsukamijo/tatsukamijo.nvim.git ~/.config/nvim
