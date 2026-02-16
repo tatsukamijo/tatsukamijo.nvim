@@ -169,6 +169,20 @@ end
 -- NOTE: You can change these options as you wish!
 --  For more options, you can see `:help option-list`
 
+-- Auto-reload files changed outside of Neovim (e.g. by Claude Code)
+vim.opt.autoread = true
+vim.api.nvim_create_autocmd({ 'FocusGained', 'BufEnter', 'WinEnter', 'CursorHold' }, {
+  group = vim.api.nvim_create_augroup('AutoReloadFile', { clear = true }),
+  command = 'checktime',
+})
+-- Periodic checktime while in terminal mode (Claude Code edits won't trigger above events)
+local checktime_timer = vim.uv.new_timer()
+checktime_timer:start(0, 1000, vim.schedule_wrap(function()
+  if vim.fn.getcmdwintype() == '' then
+    pcall(vim.cmd, 'checktime')
+  end
+end))
+
 -- Make line numbers default
 vim.opt.number = true
 -- You can also add relative line numbers, to help with jumping.
