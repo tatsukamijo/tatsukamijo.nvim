@@ -5,14 +5,14 @@ return {
   init = function()
     local group = vim.api.nvim_create_augroup('persistence-custom', { clear = true })
 
-    -- Close terminal windows before saving (they can't be properly restored)
+    -- Close terminal and neo-tree windows before saving (they can't be properly restored)
     vim.api.nvim_create_autocmd('User', {
       group = group,
       pattern = 'PersistenceSavePre',
       callback = function()
         for _, win in ipairs(vim.api.nvim_list_wins()) do
           local buf = vim.api.nvim_win_get_buf(win)
-          if vim.bo[buf].buftype == 'terminal' then
+          if vim.bo[buf].buftype == 'terminal' or vim.bo[buf].filetype == 'neo-tree' then
             vim.api.nvim_win_close(win, true)
           end
         end
