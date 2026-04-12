@@ -9,6 +9,7 @@ Neovim config based on [kickstart.nvim](https://github.com/nvim-lua/kickstart.nv
 
 Requires [Nerd Font](https://www.nerdfonts.com/).
 (Optional) [Claude Code](https://code.claude.com/docs/en/setup)
+(Optional) [Happy](https://github.com/slopus/happy): `npm install -g happy`
 
 ```sh
 # Neovim 0.11+, git, make, gcc, ripgrep
