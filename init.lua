@@ -412,7 +412,7 @@ vim.keymap.set('n', '<space>sM', function()
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       local buf = vim.api.nvim_win_get_buf(win)
       local bufname = vim.api.nvim_buf_get_name(buf)
-      local is_claude_code = bufname:match 'claude' or bufname:match 'Claude'
+      local is_claude_code = bufname:match 'claude' or bufname:match 'Claude' or bufname:match 'happy'
 
       if vim.bo[buf].buftype == 'terminal' and not is_claude_code then
         table.insert(terminal_bufs, buf)
@@ -539,9 +539,9 @@ local function equalize_windows()
     local bufname = vim.api.nvim_buf_get_name(buf)
     local buftype = vim.bo[buf].buftype
 
-    -- Check if it's Claude Code terminal (term:// buffer matching ":claude" or ":claude --resume")
-    local is_claude_terminal = buftype == 'terminal'
-      and (bufname:match ':claude%s*$' ~= nil or bufname:match ':claude%s+%-%-resume%s*$' ~= nil)
+    -- Check if it's Claude Code terminal (snacks_terminal filetype, or term:// buffer for :claude/:happy)
+    local is_claude_terminal = ft == 'snacks_terminal'
+      or (buftype == 'terminal' and (bufname:match ':claude%f[%s%z]' ~= nil or bufname:match ':happy%f[%s%z]' ~= nil))
 
     -- neo-tree, claudecode, and other sidebars should have fixed width
     local is_sidebar = ft == 'neo-tree'

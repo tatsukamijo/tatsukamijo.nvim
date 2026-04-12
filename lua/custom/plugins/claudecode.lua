@@ -21,7 +21,7 @@ end
 -- Helper: Check if current buffer is Claude Code terminal
 local function is_in_claude_buffer()
   local bufname = vim.api.nvim_buf_get_name(0)
-  return bufname:match ':claude' ~= nil
+  return bufname:match ':claude' ~= nil or bufname:match '/happy$' ~= nil
 end
 
 -- Helper: Send selection to Claude (handles both normal and terminal buffers)
