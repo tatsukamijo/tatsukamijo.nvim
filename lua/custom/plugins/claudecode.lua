@@ -62,6 +62,7 @@ return {
   'coder/claudecode.nvim',
   dependencies = { 'folke/snacks.nvim' },
   opts = {
+    terminal_cmd = vim.fn.expand '~/.pixi/envs/nodejs/bin/happy',
     terminal = {
       split_side = 'right',
       split_width_percentage = 0.30,
