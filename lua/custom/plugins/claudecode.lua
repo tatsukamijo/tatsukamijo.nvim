@@ -115,9 +115,9 @@ return {
   keys = {
     { toggle_key, '<cmd>ClaudeCodeFocus<cr>', desc = 'Toggle Claude', mode = { 'n', 'x' } },
     { '<leader>a', nil, desc = 'AI/Claude Code' },
-    { '<leader>ac', '<cmd>ClaudeCode<cr>', desc = 'Toggle Claude' },
+    { '<leader>ac', '<cmd>ClaudeCode --enable-auto-mode<cr>', desc = 'Toggle Claude' },
     { '<leader>af', '<cmd>ClaudeCodeFocus<cr>', desc = 'Focus Claude' },
-    { '<leader>ar', '<cmd>ClaudeCode --resume<cr>', desc = 'Resume Claude' },
+    { '<leader>ar', '<cmd>ClaudeCode --resume --enable-auto-mode<cr>', desc = 'Resume Claude' },
     { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue Claude' },
     { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select Claude model' },
     { '<leader>ab', focus_claude_after 'ClaudeCodeAdd %', desc = 'Add current buffer' },
