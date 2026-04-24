@@ -5,7 +5,11 @@ return {
   'iamcco/markdown-preview.nvim',
   cmd = { 'MarkdownPreviewToggle', 'MarkdownPreview', 'MarkdownPreviewStop' },
   ft = { 'markdown' },
-  build = function()
-    vim.fn['mkdp#util#install']()
+  build = 'cd app && ./install.sh',
+  config = function()
+    local bin = vim.fn.stdpath('data') .. '/lazy/markdown-preview.nvim/app/bin'
+    if vim.fn.isdirectory(bin) == 0 then
+      vim.fn['mkdp#util#install']()
+    end
   end,
 }
