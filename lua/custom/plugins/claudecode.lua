@@ -24,6 +24,18 @@ local function is_in_claude_buffer()
   return bufname:match ':claude' ~= nil or bufname:match '/happy$' ~= nil
 end
 
+-- Helper: Resolve terminal command, preferring happy over claude
+local function resolve_terminal_cmd()
+  local happy = vim.fn.expand '~/.pixi/envs/nodejs/bin/happy'
+  if vim.fn.executable(happy) == 1 then
+    return happy
+  end
+  if vim.fn.executable 'happy' == 1 then
+    return 'happy'
+  end
+  return 'claude'
+end
+
 -- Helper: Send selection to Claude (handles both normal and terminal buffers)
 local function send_selection_to_claude()
   local buftype = vim.bo.buftype
@@ -62,7 +74,7 @@ return {
   'coder/claudecode.nvim',
   dependencies = { 'folke/snacks.nvim' },
   opts = {
-    terminal_cmd = vim.fn.expand '~/.pixi/envs/nodejs/bin/happy',
+    terminal_cmd = resolve_terminal_cmd(),
     terminal = {
       split_side = 'right',
       split_width_percentage = 0.30,
