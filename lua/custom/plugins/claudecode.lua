@@ -65,6 +65,7 @@ local function open_claude_split(buf)
   if buf then
     vim.api.nvim_win_set_buf(0, buf)
   end
+  vim.wo.winfixwidth = true
 end
 
 local function spawn_claude_in_current_tab(extra_args, label)
@@ -73,6 +74,8 @@ local function spawn_claude_in_current_tab(extra_args, label)
   open_claude_split(nil)
   vim.cmd('terminal ' .. cmd .. args)
   local buf = vim.api.nvim_get_current_buf()
+  vim.b[buf].is_claude_terminal = true
+  vim.wo.winfixwidth = true
   vim.t.claude_buf = buf
   if label and label ~= '' then
     vim.t.claude_label = label
