@@ -413,6 +413,61 @@ vim.keymap.set('n', '<space>sm', function()
 end, { desc = '[S]ize [M]aximize toggle' })
 
 -- Maximize all terminals in a new tab
+-- Open a file from a child nvim ":terminal" inside this parent nvim.
+-- Called by the bashrc `nvim` wrapper when $NVIM is set.
+--   mode = 'edit'  → reuse the first editor window in this tab
+--                    (skips terminals and Claude Code panes); fallback to vsplit
+--   mode = 'split' → open a new vsplit; if a Claude pane is present, the new
+--                    window appears just to its LEFT so Claude stays rightmost
+local function find_claude_window()
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local name = vim.api.nvim_buf_get_name(buf)
+    if name:match 'claude' or name:match 'happy' then
+      return win
+    end
+  end
+  return nil
+end
+
+local function vsplit_keeping_claude_right(file)
+  local claude_win = find_claude_window()
+  if claude_win then
+    local claude_width = vim.api.nvim_win_get_width(claude_win)
+    vim.api.nvim_set_current_win(claude_win)
+    vim.cmd('leftabove vsplit ' .. file)
+    -- Restore Claude's original width (split steals from current window)
+    if vim.api.nvim_win_is_valid(claude_win) then
+      vim.api.nvim_win_set_width(claude_win, claude_width)
+    end
+  else
+    vim.cmd('botright vsplit ' .. file)
+  end
+end
+
+_G.OpenFromTerm = function(path, mode)
+  if not path or path == '' then
+    return
+  end
+  local file = vim.fn.fnameescape(path)
+  if mode == 'split' then
+    vsplit_keeping_claude_right(file)
+    return
+  end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.bo[buf].buftype == '' then
+      local name = vim.api.nvim_buf_get_name(buf)
+      if not (name:match 'claude' or name:match 'happy') then
+        vim.api.nvim_set_current_win(win)
+        vim.cmd('edit ' .. file)
+        return
+      end
+    end
+  end
+  vsplit_keeping_claude_right(file)
+end
+
 vim.keymap.set('n', '<space>sM', function()
   if close_maximized_tab() then
     return
