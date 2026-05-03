@@ -303,6 +303,29 @@ vim.api.nvim_create_autocmd('TermOpen', {
 -- Toggle terminals (preserves session)
 local term_bufs = {} -- { bufnr = { type = 'bottom' | 'vertical', height = number } }
 local maximized_tab = nil -- Shared state for maximize toggle
+local maximized_source_tab = nil -- Tab to return to when closing maximized tab
+
+local function close_maximized_tab()
+  if not (maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)) then
+    maximized_tab = nil
+    maximized_source_tab = nil
+    return false
+  end
+  if vim.fn.tabpagenr '$' <= 1 then
+    return false
+  end
+  local source = maximized_source_tab
+  -- Switch to maximized tab first so tabclose targets it explicitly,
+  -- regardless of which tab the user is currently on.
+  vim.api.nvim_set_current_tabpage(maximized_tab)
+  vim.cmd 'tabclose'
+  maximized_tab = nil
+  maximized_source_tab = nil
+  if source and vim.api.nvim_tabpage_is_valid(source) then
+    vim.api.nvim_set_current_tabpage(source)
+  end
+  return true
+end
 local function toggle_terminals()
   -- Clean up invalid buffers
   for bufnr, _ in pairs(term_bufs) do
@@ -364,12 +387,8 @@ local function toggle_terminals()
 end
 
 vim.keymap.set('n', '<space>st', function()
-  -- If maximized, close the tab first
-  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
-  if tab_exists and vim.fn.tabpagenr '$' > 1 then
-    vim.cmd 'tabclose'
-    maximized_tab = nil
-  end
+  -- If maximized, close the tab first (returns to original source tab)
+  close_maximized_tab()
   -- Then toggle terminals normally
   toggle_terminals()
 end, { desc = '[S]mall [T]erminal toggle' })
@@ -383,15 +402,9 @@ end, { desc = '[S]plit [V]ertical terminal' })
 -- Window maximize toggle (like tmux prefix+m)
 -- Uses tab to avoid resizing original window (prevents terminal output corruption)
 vim.keymap.set('n', '<space>sm', function()
-  -- Check if maximized tab still exists
-  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
-  if tab_exists and vim.fn.tabpagenr '$' > 1 then
-    -- Close the maximized tab, return to original
-    vim.cmd 'tabclose'
-    maximized_tab = nil
-  else
-    -- Reset invalid state or create new maximized tab
-    maximized_tab = nil
+  if not close_maximized_tab() then
+    -- Create a new maximized tab and remember which tab we came from
+    maximized_source_tab = vim.api.nvim_get_current_tabpage()
     local bufnr = vim.api.nvim_get_current_buf()
     vim.cmd 'tabnew'
     vim.api.nvim_win_set_buf(0, bufnr)
@@ -401,39 +414,34 @@ end, { desc = '[S]ize [M]aximize toggle' })
 
 -- Maximize all terminals in a new tab
 vim.keymap.set('n', '<space>sM', function()
-  local tab_exists = maximized_tab and vim.api.nvim_tabpage_is_valid(maximized_tab)
-  if tab_exists and vim.fn.tabpagenr '$' > 1 then
-    -- Close the maximized tab, return to original
-    vim.cmd 'tabclose'
-    maximized_tab = nil
-  else
-    -- Collect all visible terminal buffers (excluding Claude Code windows)
-    local terminal_bufs = {}
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      local buf = vim.api.nvim_win_get_buf(win)
-      local bufname = vim.api.nvim_buf_get_name(buf)
-      local is_claude_code = bufname:match 'claude' or bufname:match 'Claude' or bufname:match 'happy'
-
-      if vim.bo[buf].buftype == 'terminal' and not is_claude_code then
-        table.insert(terminal_bufs, buf)
-      end
-    end
-    if #terminal_bufs == 0 then
-      print 'No terminals to maximize'
-      return
-    end
-    -- Create new tab with first terminal
-    vim.cmd 'tabnew'
-    vim.api.nvim_win_set_buf(0, terminal_bufs[1])
-    -- Add remaining terminals as vertical splits
-    for i = 2, #terminal_bufs do
-      vim.cmd 'vsplit'
-      vim.api.nvim_win_set_buf(0, terminal_bufs[i])
-    end
-    -- Equalize window sizes
-    vim.cmd 'wincmd ='
-    maximized_tab = vim.api.nvim_get_current_tabpage()
+  if close_maximized_tab() then
+    return
   end
+  -- Collect all visible terminal buffers (excluding Claude Code windows)
+  local terminal_bufs = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    local bufname = vim.api.nvim_buf_get_name(buf)
+    local is_claude_code = bufname:match 'claude' or bufname:match 'Claude' or bufname:match 'happy'
+
+    if vim.bo[buf].buftype == 'terminal' and not is_claude_code then
+      table.insert(terminal_bufs, buf)
+    end
+  end
+  if #terminal_bufs == 0 then
+    print 'No terminals to maximize'
+    return
+  end
+  -- Remember the source tab so we can return here on close
+  maximized_source_tab = vim.api.nvim_get_current_tabpage()
+  vim.cmd 'tabnew'
+  vim.api.nvim_win_set_buf(0, terminal_bufs[1])
+  for i = 2, #terminal_bufs do
+    vim.cmd 'vsplit'
+    vim.api.nvim_win_set_buf(0, terminal_bufs[i])
+  end
+  vim.cmd 'wincmd ='
+  maximized_tab = vim.api.nvim_get_current_tabpage()
 end, { desc = '[S]ize [M]aximize all terminals' })
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier

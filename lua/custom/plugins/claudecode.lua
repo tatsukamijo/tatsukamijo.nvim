@@ -150,6 +150,18 @@ local function smart_toggle()
   end
 end
 
+-- Route <leader>ac / <leader>ar to the current tab's agent if one exists.
+-- Otherwise fall back to the claudecode.nvim singleton (main tab behavior).
+local function tab_aware_open(fallback_cmd)
+  return function()
+    if get_tab_claude_buf() then
+      smart_toggle()
+    else
+      vim.cmd(fallback_cmd)
+    end
+  end
+end
+
 -- Custom tabline: show "N:label" per tab
 function _G.ClaudeAgentTabline()
   local s = ''
@@ -258,9 +270,9 @@ return {
   keys = {
     { toggle_key, smart_toggle, desc = 'Toggle Claude (tab-aware)', mode = { 'n', 'x' } },
     { '<leader>a', nil, desc = 'AI/Claude Code' },
-    { '<leader>ac', '<cmd>ClaudeCode --enable-auto-mode<cr>', desc = 'Toggle Claude' },
+    { '<leader>ac', tab_aware_open 'ClaudeCode --enable-auto-mode', desc = 'Toggle Claude (tab-aware)' },
     { '<leader>af', '<cmd>ClaudeCodeFocus<cr>', desc = 'Focus Claude' },
-    { '<leader>ar', '<cmd>ClaudeCode --resume --enable-auto-mode<cr>', desc = 'Resume Claude' },
+    { '<leader>ar', tab_aware_open 'ClaudeCode --resume --enable-auto-mode', desc = 'Resume Claude (tab-aware)' },
     { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue Claude' },
     { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select Claude model' },
     { '<leader>ab', focus_claude_after 'ClaudeCodeAdd %', desc = 'Add current buffer' },
