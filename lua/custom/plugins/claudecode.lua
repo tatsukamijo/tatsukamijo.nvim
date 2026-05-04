@@ -222,6 +222,9 @@ return {
       split_side = 'right',
       split_width_percentage = 0.30,
       snacks_win_opts = {
+        wo = {
+          winhighlight = 'Normal:Normal,NormalNC:Normal,SignColumn:Normal,EndOfBuffer:Normal',
+        },
         keys = {
           claude_hide = {
             toggle_key,
