@@ -96,21 +96,39 @@ vim.g.have_nerd_font = true
 -- Clipboard configuration
 -- Use native pbcopy/pbpaste on macOS local, OSC 52 over SSH (with xclip fallback for large data)
 if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
-  -- SSH: Use OSC 52 for small data, xclip for large data (OSC 52 has size limits)
-  local OSC52_MAX_SIZE = 50000 -- ~50KB before base64 encoding (tmux has ~74KB limit)
+  -- SSH: OSC 52 to reach the local Mac clipboard (the only SSH-traversing path).
+  -- xclip is a fallback for payloads too big for OSC 52 — it writes to the
+  -- REMOTE X clipboard (does NOT reach Mac), but avoids truncation/freeze.
+  --
+  -- Copy goes through vim.uv.fs_write so the actual write to nvim's stdout fd
+  -- runs on libuv's thread pool. The exact same OSC 52 sequence is emitted to
+  -- the exact same destination as the original io.stdout:write, but the main
+  -- thread is no longer blocked when the kernel pipe buffer (~64KB) fills up.
+  local OSC52_MAX_SIZE = 1024 * 1024 -- 1MB
+  local has_xclip = vim.env.DISPLAY and vim.fn.executable 'xclip' == 1
 
-  local function osc52_copy(lines, _)
+  -- Lua-level cache of the last copy. With OSC 52 the data goes to the Mac
+  -- clipboard but does NOT come back via xclip on the remote, so without
+  -- this cache `yy → p` returns empty. The cache is preferred on paste only
+  -- when xclip is empty / unavailable, so Mac → nvim paste still works when
+  -- xclip is populated via X11 forwarding.
+  local last_copy = nil
+
+  local function osc52_copy(lines, regtype)
     local data = table.concat(lines, '\n')
+    last_copy = {
+      lines = vim.deepcopy(lines),
+      regtype = (regtype == 'V' or regtype == 'line') and 'V' or 'v',
+    }
 
-    -- For large data, use xclip if X11 is available (prevents freeze)
     if #data > OSC52_MAX_SIZE then
-      if vim.env.DISPLAY and vim.fn.executable 'xclip' == 1 then
-        -- Use xclip via X11 forwarding
-        vim.fn.system('xclip -selection clipboard', data)
+      if has_xclip then
+        vim.system({ 'xclip', '-selection', 'clipboard', '-loops', '1', '-quiet' }, { stdin = data })
         return
       else
-        -- Truncate and warn if no xclip available
-        vim.notify('Clipboard data truncated (OSC 52 size limit)', vim.log.levels.WARN)
+        vim.schedule(function()
+          vim.notify('Clipboard data truncated (OSC 52 size limit)', vim.log.levels.WARN)
+        end)
         data = data:sub(1, OSC52_MAX_SIZE)
       end
     end
@@ -118,23 +136,40 @@ if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
     local b64 = vim.base64.encode(data)
     local osc
     if vim.env.TMUX then
-      -- tmux needs DCS wrap
       osc = string.format('\027Ptmux;\027\027]52;c;%s\007\027\\', b64)
     else
       osc = string.format('\027]52;c;%s\007', b64)
     end
-    io.stdout:write(osc)
+    -- Async write to nvim's stdout (fd 1) via libuv thread pool. Same
+    -- destination as io.stdout:write, but main loop isn't blocked when tmux
+    -- is slow to drain the pipe.
+    vim.uv.fs_write(1, osc, -1, function() end)
   end
 
-  -- Paste: prefer xclip if available, fallback to OSC 52
   local function xclip_or_osc52_paste(reg)
     return function()
-      if vim.env.DISPLAY and vim.fn.executable 'xclip' == 1 then
-        local result = vim.fn.systemlist 'xclip -selection clipboard -o'
-        return result
-      else
+      -- Prefer xclip when it has actual content (Mac → remote X via X11 forwarding,
+      -- or local nvim copy that went through xclip due to size).
+      if has_xclip then
+        local result = vim.system({ 'xclip', '-selection', 'clipboard', '-o' }):wait()
+        if result.code == 0 and result.stdout and result.stdout ~= '' then
+          local out = result.stdout
+          local trailing_nl = out:sub(-1) == '\n'
+          if trailing_nl then
+            out = out:sub(1, -2)
+          end
+          return { vim.split(out, '\n', { plain = true }), trailing_nl and 'V' or 'v' }
+        end
+      end
+      -- Fall back to our own cache (populated by osc52_copy) so in-nvim
+      -- yy → p works even when xclip is empty.
+      if last_copy then
+        return { vim.deepcopy(last_copy.lines), last_copy.regtype }
+      end
+      if not has_xclip then
         return require('vim.ui.clipboard.osc52').paste(reg)()
       end
+      return { { '' }, 'v' }
     end
   end
 
