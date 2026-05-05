@@ -216,6 +216,11 @@ local function focus_tab_claude(buf)
     return
   end
   vim.api.nvim_set_current_win(win)
+  -- Force nvim to flush its terminal-cell renderer so any bytes happy/Claude
+  -- emitted in response to a recent chan_send are reflected. Without this,
+  -- the input box can render 1-2 lines off when chan_send + focus happen
+  -- back-to-back (happy's TUI mid-frame at the moment nvim took its draw).
+  vim.cmd 'redraw!'
   -- Defer startinsert one more tick: a bare `:startinsert` right after
   -- nvim_set_current_win is sometimes ignored when the call originated from a
   -- visual-mode mapping (mode transition still settling). Re-checking that we
@@ -255,9 +260,12 @@ local function send_selection_to_claude()
     if job_id then
       vim.api.nvim_chan_send(job_id, '@' .. tmpfile .. ' ')
       if not from_claude then
-        vim.schedule(function()
+        -- Small delay so happy's TUI finishes redrawing its input box with
+        -- the new @mention / pasted text before we focus + startinsert.
+        -- Synchronous focus on a half-rendered TUI causes 1-2 line offset.
+        vim.defer_fn(function()
           focus_tab_claude(tab_buf)
-        end)
+        end, 30)
       end
       -- Delay the tmpfile cleanup so Claude has time to read it via @mention.
       vim.defer_fn(function()
@@ -292,9 +300,12 @@ local function send_selection_to_claude()
         or string.format('@%s:%d-%d ', file, s_line, e_line)
       vim.api.nvim_chan_send(job_id, mention)
       if not from_claude then
-        vim.schedule(function()
+        -- Small delay so happy's TUI finishes redrawing its input box with
+        -- the new @mention / pasted text before we focus + startinsert.
+        -- Synchronous focus on a half-rendered TUI causes 1-2 line offset.
+        vim.defer_fn(function()
           focus_tab_claude(tab_buf)
-        end)
+        end, 30)
       end
     else
       vim.cmd 'ClaudeCodeSend'
