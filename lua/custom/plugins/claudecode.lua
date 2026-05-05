@@ -68,11 +68,29 @@ local function open_claude_split(buf)
   vim.wo.winfixwidth = true
 end
 
+-- MCP env vars expected by the Claude CLI to find claudecode.nvim's WebSocket
+-- server. Without these, a `:terminal happy` Claude does not connect, so
+-- ClaudeCodeSend (which broadcasts to all connected clients) skips it and the
+-- @mention only lands in whichever Claude was started by claudecode.nvim itself.
+local function get_mcp_env()
+  local env = {
+    ENABLE_IDE_INTEGRATION = 'true',
+    FORCE_CODE_TERMINAL = 'true',
+  }
+  local ok, claudecode = pcall(require, 'claudecode')
+  if ok and claudecode.state and claudecode.state.port then
+    env.CLAUDE_CODE_SSE_PORT = tostring(claudecode.state.port)
+  end
+  return env
+end
+
 local function spawn_claude_in_current_tab(extra_args, label)
   local cmd = resolve_terminal_cmd()
   local args = extra_args and (' ' .. extra_args) or ''
   open_claude_split(nil)
-  vim.cmd('terminal ' .. cmd .. args)
+  -- jobstart{term=true} needs an empty current buffer to attach the terminal.
+  vim.cmd 'enew'
+  vim.fn.jobstart(cmd .. args, { term = true, env = get_mcp_env() })
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].is_claude_terminal = true
   vim.wo.winfixwidth = true
@@ -138,7 +156,9 @@ end
 local function smart_toggle()
   local buf = get_tab_claude_buf()
   if not buf then
-    vim.cmd 'ClaudeCodeFocus' -- fallback: claudecode.nvim main terminal
+    -- No per-tab agent in this tab → spawn one. Previously fell back to the
+    -- claudecode.nvim singleton, whose buffer is shared across tabs.
+    spawn_claude_in_current_tab '--enable-auto-mode'
     return
   end
   local win = find_claude_window_in_tab(buf)
@@ -151,13 +171,15 @@ local function smart_toggle()
 end
 
 -- Route <leader>ac / <leader>ar to the current tab's agent if one exists.
--- Otherwise fall back to the claudecode.nvim singleton (main tab behavior).
-local function tab_aware_open(fallback_cmd)
+-- If none, spawn a new per-tab agent with the requested CLI args (do NOT
+-- fall back to the singleton — it shares one buffer across all tabs and
+-- makes `gt` + `<leader>ar` show the same session everywhere).
+local function tab_aware_open(extra_args)
   return function()
     if get_tab_claude_buf() then
       smart_toggle()
     else
-      vim.cmd(fallback_cmd)
+      spawn_claude_in_current_tab(extra_args)
     end
   end
 end
@@ -179,37 +201,109 @@ function _G.ClaudeAgentTabline()
 end
 vim.o.tabline = '%!v:lua.ClaudeAgentTabline()'
 
--- Helper: Send selection to Claude (handles both normal and terminal buffers)
+-- Focus this tab's per-tab Claude window (re-opening the split if hidden)
+-- and enter terminal-job mode so the user can type immediately.
+local function focus_tab_claude(buf)
+  if not buf or not vim.api.nvim_buf_is_valid(buf) then
+    return
+  end
+  local win = find_claude_window_in_tab(buf)
+  if not win then
+    open_claude_split(buf)
+    win = find_claude_window_in_tab(buf)
+  end
+  if not win then
+    return
+  end
+  vim.api.nvim_set_current_win(win)
+  -- Defer startinsert one more tick: a bare `:startinsert` right after
+  -- nvim_set_current_win is sometimes ignored when the call originated from a
+  -- visual-mode mapping (mode transition still settling). Re-checking that we
+  -- are still in this window guards against a fast user switching away.
+  vim.schedule(function()
+    if vim.api.nvim_get_current_win() == win and vim.bo[buf].buftype == 'terminal' then
+      vim.cmd 'startinsert'
+    end
+  end)
+end
+
+-- Send selection to Claude. If a per-tab agent exists, route there directly
+-- (bypassing claudecode.nvim's broadcast which fans out to ALL connected
+-- Claudes). Otherwise fall back to the plugin's commands.
 local function send_selection_to_claude()
   local buftype = vim.bo.buftype
   local from_claude = is_in_claude_buffer()
+  local tab_buf = get_tab_claude_buf()
+  local job_id = tab_buf and vim.b[tab_buf].terminal_job_id or nil
 
   if buftype == 'terminal' then
     vim.cmd 'normal! y'
     local yanked = vim.fn.getreg '"'
-
     if yanked == '' then
       vim.notify('Selection is empty', vim.log.levels.WARN)
       return
     end
 
+    -- Leave visual mode synchronously before we focus the Claude window.
+    -- Mode is global in nvim, so without this the Claude terminal inherits
+    -- visual-line mode and shows a gray highlight on a line.
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+
     local tmpfile = string.format('%s_claude_%d', vim.fn.tempname(), vim.loop.hrtime())
     vim.fn.writefile(vim.split(yanked, '\n'), tmpfile)
 
-    vim.cmd('ClaudeCodeAdd ' .. tmpfile)
-    vim.defer_fn(function()
+    if job_id then
+      vim.api.nvim_chan_send(job_id, '@' .. tmpfile .. ' ')
       if not from_claude then
-        vim.cmd 'ClaudeCodeFocus'
+        vim.schedule(function()
+          focus_tab_claude(tab_buf)
+        end)
       end
-      vim.fn.delete(tmpfile)
-    end, 500)
+      -- Delay the tmpfile cleanup so Claude has time to read it via @mention.
+      vim.defer_fn(function()
+        vim.fn.delete(tmpfile)
+      end, 1500)
+    else
+      vim.cmd('ClaudeCodeAdd ' .. tmpfile)
+      vim.defer_fn(function()
+        if not from_claude then
+          vim.cmd 'ClaudeCodeFocus'
+        end
+        vim.fn.delete(tmpfile)
+      end, 500)
+    end
   else
-    vim.cmd 'ClaudeCodeSend'
-    vim.defer_fn(function()
-      if not from_claude then
-        vim.cmd 'ClaudeCodeFocus'
+    if job_id then
+      -- Build @file:line[-line] mention from the visual marks. Path is
+      -- relative to nvim's cwd, which equals the per-tab Claude's cwd
+      -- since spawn_claude_in_current_tab inherits it.
+      local file = vim.fn.expand '%:.'
+      if file == '' then
+        vim.notify('Buffer has no file path', vim.log.levels.WARN)
+        return
       end
-    end, 100)
+      local s_line = vim.fn.line "'<"
+      local e_line = vim.fn.line "'>"
+      -- Leave visual mode before focusing the Claude window. Mode is global
+      -- so otherwise the terminal inherits visual-line mode (gray highlight).
+      vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<Esc>', true, false, true), 'nx', false)
+      local mention = (s_line == e_line)
+        and string.format('@%s:%d ', file, s_line)
+        or string.format('@%s:%d-%d ', file, s_line, e_line)
+      vim.api.nvim_chan_send(job_id, mention)
+      if not from_claude then
+        vim.schedule(function()
+          focus_tab_claude(tab_buf)
+        end)
+      end
+    else
+      vim.cmd 'ClaudeCodeSend'
+      vim.defer_fn(function()
+        if not from_claude then
+          vim.cmd 'ClaudeCodeFocus'
+        end
+      end, 100)
+    end
   end
 end
 
@@ -273,9 +367,9 @@ return {
   keys = {
     { toggle_key, smart_toggle, desc = 'Toggle Claude (tab-aware)', mode = { 'n', 'x' } },
     { '<leader>a', nil, desc = 'AI/Claude Code' },
-    { '<leader>ac', tab_aware_open 'ClaudeCode --enable-auto-mode', desc = 'Toggle Claude (tab-aware)' },
+    { '<leader>ac', tab_aware_open '--enable-auto-mode', desc = 'Toggle Claude (tab-aware)' },
     { '<leader>af', '<cmd>ClaudeCodeFocus<cr>', desc = 'Focus Claude' },
-    { '<leader>ar', tab_aware_open 'ClaudeCode --resume --enable-auto-mode', desc = 'Resume Claude (tab-aware)' },
+    { '<leader>ar', tab_aware_open '--resume --enable-auto-mode', desc = 'Resume Claude (tab-aware)' },
     { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue Claude' },
     { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select Claude model' },
     { '<leader>ab', focus_claude_after 'ClaudeCodeAdd %', desc = 'Add current buffer' },
