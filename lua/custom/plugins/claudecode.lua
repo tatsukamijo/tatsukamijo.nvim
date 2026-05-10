@@ -3,21 +3,6 @@
 
 local toggle_key = '<C-,>'
 
--- Helper: Auto-focus Claude Code after command execution
-local function focus_claude_after(cmd, delay)
-  delay = delay or 100
-  return function()
-    if vim.bo.buftype == 'terminal' then
-      vim.notify('Cannot execute from terminal buffer', vim.log.levels.WARN)
-      return
-    end
-    vim.cmd(cmd)
-    vim.defer_fn(function()
-      vim.cmd 'ClaudeCodeFocus'
-    end, delay)
-  end
-end
-
 -- Helper: Check if current buffer is Claude Code terminal
 local function is_in_claude_buffer()
   local bufname = vim.api.nvim_buf_get_name(0)
@@ -232,6 +217,40 @@ local function focus_tab_claude(buf)
   end)
 end
 
+-- Add current buffer as @mention. Like send_selection_to_claude, route via
+-- the per-tab job's channel so the @mention lands only in this tab's Claude
+-- (ClaudeCodeAdd broadcasts over WebSocket to all connected clients).
+local function add_buffer_to_claude()
+  if vim.bo.buftype == 'terminal' then
+    vim.notify('Cannot execute from terminal buffer', vim.log.levels.WARN)
+    return
+  end
+  local file = vim.fn.expand '%:.'
+  if file == '' then
+    vim.notify('Buffer has no file path', vim.log.levels.WARN)
+    return
+  end
+  local from_claude = is_in_claude_buffer()
+  local tab_buf = get_tab_claude_buf()
+  local job_id = tab_buf and vim.b[tab_buf].terminal_job_id or nil
+
+  if job_id then
+    vim.api.nvim_chan_send(job_id, '@' .. file .. ' ')
+    if not from_claude then
+      vim.schedule(function()
+        focus_tab_claude(tab_buf)
+      end)
+    end
+  else
+    vim.cmd 'ClaudeCodeAdd %'
+    if not from_claude then
+      vim.defer_fn(function()
+        vim.cmd 'ClaudeCodeFocus'
+      end, 100)
+    end
+  end
+end
+
 -- Send selection to Claude. If a per-tab agent exists, route there directly
 -- (bypassing claudecode.nvim's broadcast which fans out to ALL connected
 -- Claudes). Otherwise fall back to the plugin's commands.
@@ -383,7 +402,7 @@ return {
     { '<leader>ar', tab_aware_open '--resume --enable-auto-mode', desc = 'Resume Claude (tab-aware)' },
     { '<leader>aC', '<cmd>ClaudeCode --continue<cr>', desc = 'Continue Claude' },
     { '<leader>am', '<cmd>ClaudeCodeSelectModel<cr>', desc = 'Select Claude model' },
-    { '<leader>ab', focus_claude_after 'ClaudeCodeAdd %', desc = 'Add current buffer' },
+    { '<leader>ab', add_buffer_to_claude, desc = 'Add current buffer' },
     { '<leader>as', send_selection_to_claude, mode = 'v', desc = 'Send to Claude' },
     -- Multi-agent (per-tab)
     {
