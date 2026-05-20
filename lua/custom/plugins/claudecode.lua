@@ -9,16 +9,33 @@ local function is_in_claude_buffer()
   return bufname:match ':claude' ~= nil or bufname:match '/happy$' ~= nil
 end
 
--- Helper: Resolve terminal command, preferring happy over claude
+-- Helper: Resolve the base terminal command.
+-- happy is intentionally NOT used: its backend api.cluster-fluster.com is
+-- SSL-intercepted by the campus FortiGate, whose CA is not trusted by Node,
+-- so happy fails with "unable to verify the first certificate". Plain claude
+-- talks to api.anthropic.com, which the FortiGate does not intercept.
+-- To re-enable happy later, install the FortiGate CA and set NODE_EXTRA_CA_CERTS.
 local function resolve_terminal_cmd()
-  local happy = vim.fn.expand '~/.pixi/envs/nodejs/bin/happy'
-  if vim.fn.executable(happy) == 1 then
-    return happy
-  end
-  if vim.fn.executable 'happy' == 1 then
-    return 'happy'
-  end
   return 'claude'
+end
+
+-- Build a Remote Control session name so each nvim-launched Claude is
+-- distinguishable in the Claude app / claude.ai. Shape "<project>-<label>",
+-- e.g. "slidev-refactor" or "slidev-agent3"; sanitized to [%w-_].
+-- Note: the name is fixed at process launch -- <leader>aL renaming a tab
+-- afterwards updates only the nvim tabline, not the live RC session name.
+local function rc_session_name(label)
+  local project = vim.fn.fnamemodify(vim.fn.getcwd(), ':t')
+  local name = (label and label ~= '') and (project .. '-' .. label) or project
+  return (name:gsub('[^%w%-_]', '_'))
+end
+
+-- Append `--remote-control <name>` so the session launches with Remote Control
+-- already on (reachable from phone/web, no manual /remote-control) under an
+-- explicit, app-visible name. Explicit name => position among other flags
+-- does not matter; the value token never starts with "-".
+local function with_remote_control(cmd, label)
+  return cmd .. ' --remote-control ' .. rc_session_name(label)
 end
 
 -- ===== Multi-agent (per-tab Claude terminal) =====
@@ -75,16 +92,16 @@ local function spawn_claude_in_current_tab(extra_args, label)
   open_claude_split(nil)
   -- jobstart{term=true} needs an empty current buffer to attach the terminal.
   vim.cmd 'enew'
-  vim.fn.jobstart(cmd .. args, { term = true, env = get_mcp_env() })
+  -- Resolve the label before launch so it can name the Remote Control session.
+  -- Falls back to "agent<tabpage>" when spawned without an explicit label
+  -- (smart_toggle / tab_aware_open).
+  local effective_label = (label and label ~= '') and label or ('agent' .. vim.api.nvim_get_current_tabpage())
+  vim.fn.jobstart(with_remote_control(cmd .. args, effective_label), { term = true, env = get_mcp_env() })
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].is_claude_terminal = true
   vim.wo.winfixwidth = true
   vim.t.claude_buf = buf
-  if label and label ~= '' then
-    vim.t.claude_label = label
-  else
-    vim.t.claude_label = 'agent' .. vim.api.nvim_get_current_tabpage()
-  end
+  vim.t.claude_label = effective_label
   vim.cmd 'startinsert'
 end
 
@@ -341,7 +358,9 @@ return {
   'coder/claudecode.nvim',
   dependencies = { 'folke/snacks.nvim' },
   opts = {
-    terminal_cmd = resolve_terminal_cmd(),
+    -- Singleton terminal (ClaudeCode commands, *Send/*Add fallback). Named
+    -- after the project; the name is frozen at config load (startup cwd).
+    terminal_cmd = with_remote_control(resolve_terminal_cmd(), nil),
     terminal = {
       split_side = 'right',
       split_width_percentage = 0.30,
