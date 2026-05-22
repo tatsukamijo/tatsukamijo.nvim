@@ -74,7 +74,22 @@ end
 -- server. Without these, a `:terminal happy` Claude does not connect, so
 -- ClaudeCodeSend (which broadcasts to all connected clients) skips it and the
 -- @mention only lands in whichever Claude was started by claudecode.nvim itself.
-local function get_mcp_env()
+--
+-- `fallback` adds the env that points the claude binary at claude-code-router
+-- (127.0.0.1:3456) instead of api.anthropic.com -- used when Anthropic is
+-- unreachable. The binary, the MCP integration and every keymap stay the same;
+-- only the model backend changes (a local Ollama coding model). Values mirror
+-- `ccr activate`.
+local FALLBACK_ENV = {
+  ANTHROPIC_BASE_URL = 'http://127.0.0.1:3456',
+  ANTHROPIC_AUTH_TOKEN = 'test',
+  NO_PROXY = '127.0.0.1',
+  DISABLE_TELEMETRY = 'true',
+  DISABLE_COST_WARNINGS = 'true',
+  API_TIMEOUT_MS = '600000',
+}
+
+local function get_mcp_env(fallback)
   local env = {
     ENABLE_IDE_INTEGRATION = 'true',
     FORCE_CODE_TERMINAL = 'true',
@@ -83,12 +98,35 @@ local function get_mcp_env()
   if ok and claudecode.state and claudecode.state.port then
     env.CLAUDE_CODE_SSE_PORT = tostring(claudecode.state.port)
   end
+  if fallback then
+    env = vim.tbl_extend('force', env, FALLBACK_ENV)
+  end
   return env
 end
 
-local function spawn_claude_in_current_tab(extra_args, label)
+-- The CUDA-enabled official ollama build. Explicit path on purpose: the
+-- system ollama on PATH (:11434) is too old for the model, and conda-forge's
+-- ollama is CPU-only -- only this one offloads the model to the GPU.
+local OLLAMA_BIN = vim.fn.expand '~/.ollama-cuda/bin/ollama'
+
+-- Bring up the local fallback stack before launching a fallback agent:
+--   * ollama on :11435 -- separate from the old system service on :11434;
+--     spawned detached so it outlives nvim, skipped if already up.
+--   * claude-code-router on :3456 -- `ccr start` is a no-op if already running.
+local function ensure_fallback_services()
+  vim.fn.system { 'curl', '-sf', '-m', '1', 'http://127.0.0.1:11435/api/version' }
+  if vim.v.shell_error ~= 0 then
+    vim.fn.jobstart({ OLLAMA_BIN, 'serve' }, { detach = true, env = { OLLAMA_HOST = '127.0.0.1:11435' } })
+  end
+  vim.fn.system { 'ccr', 'start' }
+end
+
+local function spawn_claude_in_current_tab(extra_args, label, fallback)
   local cmd = resolve_terminal_cmd()
   local args = extra_args and (' ' .. extra_args) or ''
+  if fallback then
+    ensure_fallback_services()
+  end
   open_claude_split(nil)
   -- jobstart{term=true} needs an empty current buffer to attach the terminal.
   vim.cmd 'enew'
@@ -96,7 +134,7 @@ local function spawn_claude_in_current_tab(extra_args, label)
   -- Falls back to "agent<tabpage>" when spawned without an explicit label
   -- (smart_toggle / tab_aware_open).
   local effective_label = (label and label ~= '') and label or ('agent' .. vim.api.nvim_get_current_tabpage())
-  vim.fn.jobstart(with_remote_control(cmd .. args, effective_label), { term = true, env = get_mcp_env() })
+  vim.fn.jobstart(with_remote_control(cmd .. args, effective_label), { term = true, env = get_mcp_env(fallback) })
   local buf = vim.api.nvim_get_current_buf()
   vim.b[buf].is_claude_terminal = true
   vim.wo.winfixwidth = true
@@ -120,15 +158,20 @@ local function pick_editor_buffer()
   return nil
 end
 
-local function new_agent_tab(extra_args)
+local function new_agent_tab(extra_args, fallback)
   local editor_buf = pick_editor_buffer()
   vim.cmd 'tabnew' -- empty new tab; we control what shows in the left pane
   if editor_buf then
     vim.api.nvim_win_set_buf(0, editor_buf)
   end
-  vim.ui.input({ prompt = 'Agent label: ' }, function(input)
-    spawn_claude_in_current_tab(extra_args, input)
-  end)
+  if fallback then
+    -- No label prompt: the fallback agent is always labelled "fallback".
+    spawn_claude_in_current_tab(extra_args, 'fallback', true)
+  else
+    vim.ui.input({ prompt = 'Agent label: ' }, function(input)
+      spawn_claude_in_current_tab(extra_args, input)
+    end)
+  end
 end
 
 local function rename_current_label()
@@ -437,6 +480,13 @@ return {
         new_agent_tab '--resume --enable-auto-mode'
       end,
       desc = '[R]esume in new agent tab',
+    },
+    {
+      '<leader>aF',
+      function()
+        new_agent_tab('--enable-auto-mode', true)
+      end,
+      desc = '[F]allback agent (local model, Claude down)',
     },
     { '<leader>aL', rename_current_label, desc = '[L]abel current agent tab' },
     { '<leader>aX', close_agent_tab, desc = 'Close agent tab' },
