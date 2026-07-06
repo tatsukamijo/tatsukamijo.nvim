@@ -94,8 +94,11 @@ vim.g.maplocalleader = ' '
 vim.g.have_nerd_font = true
 
 -- Clipboard configuration
--- Use native pbcopy/pbpaste on macOS local, OSC 52 over SSH (with xclip fallback for large data)
-if vim.env.SSH_CONNECTION or vim.env.SSH_TTY then
+-- Use native pbcopy/pbpaste on macOS local, OSC 52 everywhere else (with xclip
+-- fallback for large data). Don't rely on SSH_* alone: job schedulers (e.g. PBS
+-- interactive jobs on compute nodes) spawn shells without SSH_CONNECTION/SSH_TTY,
+-- yet the terminal still reaches the local machine, so OSC 52 is the right path.
+if vim.env.SSH_CONNECTION or vim.env.SSH_TTY or vim.uv.os_uname().sysname ~= 'Darwin' then
   -- SSH: OSC 52 to reach the local Mac clipboard (the only SSH-traversing path).
   -- xclip is a fallback for payloads too big for OSC 52 — it writes to the
   -- REMOTE X clipboard (does NOT reach Mac), but avoids truncation/freeze.
