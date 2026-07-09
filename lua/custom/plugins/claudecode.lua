@@ -43,10 +43,28 @@ end
 -- to the same nvim's MCP server (one-server-per-nvim is fine: @mention/diff
 -- target the same editor; conversations are independent per CLI process).
 
-local function get_tab_claude_buf(tabid)
+-- The tabpage var on its own. The buffer can outlive its job, and a hung CLI still
+-- counts as running, so each caller has to opt into the check it actually needs.
+local function raw_tab_claude_buf(tabid)
   tabid = tabid or 0
   local ok, buf = pcall(vim.api.nvim_tabpage_get_var, tabid, 'claude_buf')
   if ok and buf and vim.api.nvim_buf_is_valid(buf) then
+    return buf
+  end
+  return nil
+end
+
+-- jobwait(..., 0) yields -1 while the job runs and -3 once its id is gone.
+local function claude_job_alive(buf)
+  local jid = buf and vim.b[buf].terminal_job_id
+  return jid ~= nil and vim.fn.jobwait({ jid }, 0)[1] == -1
+end
+
+-- A terminal buffer stays nvim_buf_is_valid() forever after its job exits, so
+-- validity alone would leave <leader>ac toggling a corpse instead of respawning.
+local function get_tab_claude_buf(tabid)
+  local buf = raw_tab_claude_buf(tabid)
+  if buf and claude_job_alive(buf) then
     return buf
   end
   return nil
@@ -140,6 +158,9 @@ local function spawn_claude_in_current_tab(extra_args, label, fallback)
   vim.wo.winfixwidth = true
   vim.t.claude_buf = buf
   vim.t.claude_label = effective_label
+  -- Remembered so restart_tab_agent can relaunch with the same flags. Restarting a
+  -- --resume agent as a fresh one would silently strand the conversation it held.
+  vim.t.claude_args = extra_args
   vim.cmd 'startinsert'
 end
 
@@ -186,16 +207,45 @@ local function rename_current_label()
   end)
 end
 
-local function close_agent_tab()
-  if vim.fn.tabpagenr '$' == 1 then
-    vim.notify('Cannot close last tab', vim.log.levels.WARN)
-    return
-  end
-  local buf = get_tab_claude_buf()
+-- Tear down this tab's agent, buffer and job. Uses raw_tab_claude_buf so it can
+-- still reach an agent whose job already exited. The buffer has to go even on the
+-- last tabpage, otherwise a wedged agent leaves the tab var pointing at it forever.
+local function wipe_tab_agent()
+  local buf = raw_tab_claude_buf()
   if buf then
+    local win = find_claude_window_in_tab(buf)
+    if win then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+    local jid = vim.b[buf].terminal_job_id
+    if jid then
+      pcall(vim.fn.jobstop, jid)
+    end
     pcall(vim.api.nvim_buf_delete, buf, { force = true })
   end
+  vim.t.claude_buf = nil
+  vim.t.claude_label = nil
+  vim.t.claude_args = nil
+end
+
+local function close_agent_tab()
+  wipe_tab_agent()
+  if vim.fn.tabpagenr '$' == 1 then
+    vim.notify('Agent closed (last tab kept)', vim.log.levels.INFO)
+    vim.cmd 'redrawtabline'
+    return
+  end
   vim.cmd 'tabclose'
+end
+
+-- Replace this tab's agent with a fresh one. This cannot be automated away: a CLI
+-- that stops rendering keeps its job alive, so claude_job_alive() still reports it
+-- healthy and only the user can decide it is wedged.
+local function restart_tab_agent(extra_args)
+  local label = vim.t.claude_label
+  local args = extra_args or vim.t.claude_args or '--enable-auto-mode'
+  wipe_tab_agent()
+  spawn_claude_in_current_tab(args, label)
 end
 
 local function smart_toggle()
@@ -489,7 +539,14 @@ return {
       desc = '[F]allback agent (local model, Claude down)',
     },
     { '<leader>aL', rename_current_label, desc = '[L]abel current agent tab' },
-    { '<leader>aX', close_agent_tab, desc = 'Close agent tab' },
+    { '<leader>aX', close_agent_tab, desc = 'Close agent (and tab, if not the last)' },
+    {
+      '<leader>aK',
+      function()
+        restart_tab_agent()
+      end,
+      desc = '[K]ill + restart this tab’s agent (use when the pane stops responding)',
+    },
     {
       '<leader>as',
       function()
